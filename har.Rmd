@@ -2,7 +2,12 @@
 title: "Human Activity Recognition"
 author: "Pavel Andrienko"
 date: "Friday, May 22, 2015"
-output: html_document
+output:
+    html_document:
+        pandoc_args: [
+          "+RTS", "-K64m",
+          "-RTS"
+        ]
 ---
 
 Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
@@ -16,9 +21,103 @@ The test data are available here:
 
 https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
 
+## Goal
 
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set.
+
+## Obtaining Data
 
 ```{r}
+if(!file.exists("./data")){dir.create("./data")}
 
+# training data
+trainingFileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainingFileName <- "./data/pml-training.csv"
+if(!file.exists(trainingFileName)){
+    download.file(trainingFileUrl, trainingFileName)
+}
+trainingData <- read.csv(trainingFileName)
+
+# testing data
+testingFileUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testingFileName <- "./data/pml-testing.csv"
+if(!file.exists(testingFileName)){
+    download.file(testingFileUrl, testingFileName)
+}
+testingData <- read.csv(testingFileName)
 ```
 
+## Analize data
+
+```{r}
+dim(trainingData)
+```
+
+We had `dim(trainingData)[1]` variables.
+
+```{r,results='hide'}
+summary(trainingData)
+```
+
+The output is huge, but we can see that only part of variable contain full data and no NA, and these variables can be splitted in several groups.
+
+Lets make list with names of these variables.
+
+```{r}
+type <- c("belt", "arm", "dumbbell", "forearm")
+prefix0 <- c("roll", "pitch", "yaw", "total_accel")
+prefix1 <- c("gyros", "accel", "magnet")
+suffix <- c("x", "y", "z")
+cols1 <- as.vector(outer(prefix0, type, paste, sep="_"))
+a <- as.vector(outer(prefix1, type, paste, sep="_"))
+cols2 <- as.vector(outer(a, suffix, paste, sep="_"))
+cols <- c("classe", cols1,cols2)
+```
+
+Ok, these a list which we can use to get tidy data from our raw data.
+
+```{r}
+cols
+```
+
+```{r}
+training <- trainingData[,cols]
+testing <- testingData[,cols[-1]]
+```
+
+## Train model
+
+```{r}
+library(caret)
+if(!file.exists("./storage")){dir.create("./storage")}
+modelFilename <- "./storage/modelRF.rda"
+if(!file.exists(modelFilename)){
+    modelRF <- train(classe ~., method="rf", data=training)
+} else {
+    load(file=modelFilename)
+}
+```
+
+Result model
+
+```{r}
+modelRF
+```
+
+## Interpretation
+
+```{r}
+varImp(modelRF)
+```
+
+
+## Prediction
+
+```{r}
+modelRFResult <- predict(modelRF, newdata=testing)
+modelRFResult
+```
+
+## Result
+
+According to assignment page 20 of 20 values are predicted correctly.

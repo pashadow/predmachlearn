@@ -72,6 +72,147 @@ img {
 <p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv" class="uri">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv</a></p>
 <p>The test data are available here:</p>
 <p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv" class="uri">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv</a></p>
+<div id="goal" class="section level2">
+<h2>Goal</h2>
+<p>The goal of this project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set.</p>
+</div>
+<div id="obtaining-data" class="section level2">
+<h2>Obtaining Data</h2>
+<pre class="r"><code>if(!file.exists(&quot;./data&quot;)){dir.create(&quot;./data&quot;)}
+
+# training data
+trainingFileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;
+trainingFileName &lt;- &quot;./data/pml-training.csv&quot;
+if(!file.exists(trainingFileName)){
+    download.file(trainingFileUrl, trainingFileName)
+}
+trainingData &lt;- read.csv(trainingFileName)
+
+# testing data
+testingFileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;
+testingFileName &lt;- &quot;./data/pml-testing.csv&quot;
+if(!file.exists(testingFileName)){
+    download.file(testingFileUrl, testingFileName)
+}
+testingData &lt;- read.csv(testingFileName)</code></pre>
+</div>
+<div id="analize-data" class="section level2">
+<h2>Analize data</h2>
+<pre class="r"><code>dim(trainingData)</code></pre>
+<pre><code>## [1] 19622   160</code></pre>
+<p>We had <code>dim(trainingData)[1]</code> variables.</p>
+<pre class="r"><code>summary(trainingData)</code></pre>
+<p>The output is huge, but we can see that only part of variable contain full data and no NA, and these variables can be splitted in several groups.</p>
+<p>Lets make list with names of these variables.</p>
+<pre class="r"><code>type &lt;- c(&quot;belt&quot;, &quot;arm&quot;, &quot;dumbbell&quot;, &quot;forearm&quot;)
+prefix0 &lt;- c(&quot;roll&quot;, &quot;pitch&quot;, &quot;yaw&quot;, &quot;total_accel&quot;)
+prefix1 &lt;- c(&quot;gyros&quot;, &quot;accel&quot;, &quot;magnet&quot;)
+suffix &lt;- c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;)
+cols1 &lt;- as.vector(outer(prefix0, type, paste, sep=&quot;_&quot;))
+a &lt;- as.vector(outer(prefix1, type, paste, sep=&quot;_&quot;))
+cols2 &lt;- as.vector(outer(a, suffix, paste, sep=&quot;_&quot;))
+cols &lt;- c(&quot;classe&quot;, cols1,cols2)</code></pre>
+<p>Ok, these a list which we can use to get tidy data from our raw data.</p>
+<pre class="r"><code>cols</code></pre>
+<pre><code>##  [1] &quot;classe&quot;               &quot;roll_belt&quot;            &quot;pitch_belt&quot;          
+##  [4] &quot;yaw_belt&quot;             &quot;total_accel_belt&quot;     &quot;roll_arm&quot;            
+##  [7] &quot;pitch_arm&quot;            &quot;yaw_arm&quot;              &quot;total_accel_arm&quot;     
+## [10] &quot;roll_dumbbell&quot;        &quot;pitch_dumbbell&quot;       &quot;yaw_dumbbell&quot;        
+## [13] &quot;total_accel_dumbbell&quot; &quot;roll_forearm&quot;         &quot;pitch_forearm&quot;       
+## [16] &quot;yaw_forearm&quot;          &quot;total_accel_forearm&quot;  &quot;gyros_belt_x&quot;        
+## [19] &quot;accel_belt_x&quot;         &quot;magnet_belt_x&quot;        &quot;gyros_arm_x&quot;         
+## [22] &quot;accel_arm_x&quot;          &quot;magnet_arm_x&quot;         &quot;gyros_dumbbell_x&quot;    
+## [25] &quot;accel_dumbbell_x&quot;     &quot;magnet_dumbbell_x&quot;    &quot;gyros_forearm_x&quot;     
+## [28] &quot;accel_forearm_x&quot;      &quot;magnet_forearm_x&quot;     &quot;gyros_belt_y&quot;        
+## [31] &quot;accel_belt_y&quot;         &quot;magnet_belt_y&quot;        &quot;gyros_arm_y&quot;         
+## [34] &quot;accel_arm_y&quot;          &quot;magnet_arm_y&quot;         &quot;gyros_dumbbell_y&quot;    
+## [37] &quot;accel_dumbbell_y&quot;     &quot;magnet_dumbbell_y&quot;    &quot;gyros_forearm_y&quot;     
+## [40] &quot;accel_forearm_y&quot;      &quot;magnet_forearm_y&quot;     &quot;gyros_belt_z&quot;        
+## [43] &quot;accel_belt_z&quot;         &quot;magnet_belt_z&quot;        &quot;gyros_arm_z&quot;         
+## [46] &quot;accel_arm_z&quot;          &quot;magnet_arm_z&quot;         &quot;gyros_dumbbell_z&quot;    
+## [49] &quot;accel_dumbbell_z&quot;     &quot;magnet_dumbbell_z&quot;    &quot;gyros_forearm_z&quot;     
+## [52] &quot;accel_forearm_z&quot;      &quot;magnet_forearm_z&quot;</code></pre>
+<pre class="r"><code>training &lt;- trainingData[,cols]
+testing &lt;- testingData[,cols[-1]]</code></pre>
+</div>
+<div id="train-model" class="section level2">
+<h2>Train model</h2>
+<pre class="r"><code>library(caret)</code></pre>
+<pre><code>## Loading required package: lattice
+## Loading required package: ggplot2</code></pre>
+<pre class="r"><code>if(!file.exists(&quot;./storage&quot;)){dir.create(&quot;./storage&quot;)}
+modelFilename &lt;- &quot;./storage/modelRF.rda&quot;
+if(!file.exists(modelFilename)){
+    modelRF &lt;- train(classe ~., method=&quot;rf&quot;, data=training)
+} else {
+    load(file=modelFilename)
+}</code></pre>
+<p>Result model</p>
+<pre class="r"><code>modelRF</code></pre>
+<pre><code>## Random Forest 
+## 
+## 19622 samples
+##    52 predictor
+##     5 classes: 'A', 'B', 'C', 'D', 'E' 
+## 
+## No pre-processing
+## Resampling: Bootstrapped (25 reps) 
+## 
+## Summary of sample sizes: 19622, 19622, 19622, 19622, 19622, 19622, ... 
+## 
+## Resampling results across tuning parameters:
+## 
+##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
+##    2    0.9928244  0.9909217  0.001360437  0.001721197
+##   27    0.9922011  0.9901331  0.001249430  0.001580989
+##   52    0.9840655  0.9798383  0.003386867  0.004289967
+## 
+## Accuracy was used to select the optimal model using  the largest value.
+## The final value used for the model was mtry = 2.</code></pre>
+</div>
+<div id="interpretation" class="section level2">
+<h2>Interpretation</h2>
+<pre class="r"><code>varImp(modelRF)</code></pre>
+<pre><code>## Loading required package: randomForest
+## randomForest 4.6-10
+## Type rfNews() to see new features/changes/bug fixes.</code></pre>
+<pre><code>## rf variable importance
+## 
+##   only 20 most important variables shown (out of 52)
+## 
+##                      Overall
+## roll_belt             100.00
+## yaw_belt               84.00
+## magnet_dumbbell_z      69.44
+## pitch_belt             62.51
+## pitch_forearm          62.43
+## magnet_dumbbell_y      60.07
+## roll_forearm           53.47
+## magnet_dumbbell_x      52.52
+## magnet_belt_z          42.99
+## roll_dumbbell          41.93
+## accel_belt_z           41.77
+## accel_dumbbell_y       40.97
+## magnet_belt_y          39.21
+## accel_dumbbell_z       39.15
+## roll_arm               33.42
+## accel_forearm_x        31.58
+## gyros_belt_z           29.62
+## yaw_dumbbell           28.37
+## magnet_arm_y           27.60
+## total_accel_dumbbell   27.21</code></pre>
+</div>
+<div id="prediction" class="section level2">
+<h2>Prediction</h2>
+<pre class="r"><code>modelRFResult &lt;- predict(modelRF, newdata=testing)
+modelRFResult</code></pre>
+<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
+## Levels: A B C D E</code></pre>
+</div>
+<div id="result" class="section level2">
+<h2>Result</h2>
+<p>According to assignment page 20 of 20 values are predicted correctly.</p>
+</div>
 
 
 </div>
