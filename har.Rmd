@@ -105,6 +105,7 @@ modelDTFilename <- "./storage/modelRpart.rda"
 if(!file.exists(modelDTFilename)){
     # Fit model
     modelRpart <- train(classe ~., method="rpart", data=training)
+    save(modelRpart, file=modelDTFilename)
 } else {
     load(file=modelDTFilename)
 }
@@ -123,6 +124,7 @@ modelRFFilename <- "./storage/modelRF.rda"
 if(!file.exists(modelRFFilename)){
     # Fit model
     modelRF <- train(classe ~., method="rf", data=training)
+    save(modelRF, file=modelRFFilename)
 } else {
     load(file=modelRFFilename)
 }
