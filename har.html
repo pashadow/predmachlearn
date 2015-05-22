@@ -72,13 +72,25 @@ img {
 <p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv" class="uri">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv</a></p>
 <p>The test data are available here:</p>
 <p><a href="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv" class="uri">https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv</a></p>
-<div id="goal" class="section level2">
-<h2>Goal</h2>
-<p>The goal of this project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set.</p>
+<p><em>The goal of this project is to predict the manner in which they did the exercise. This is the “classe” variable in the training set.</em></p>
+<div id="data-description" class="section level2">
+<h2>Data description</h2>
+<p>The outcome variable is classe, a factor variable with 5 levels. For this data set, participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in 5 different fashions:</p>
+<ul>
+<li>exactly according to the specification (Class A)</li>
+<li>throwing the elbows to the front (Class B)</li>
+<li>lifting the dumbbell only halfway (Class C)</li>
+<li>lowering the dumbbell only halfway (Class D)</li>
+<li>throwing the hips to the front (Class E)</li>
+</ul>
 </div>
 <div id="obtaining-data" class="section level2">
 <h2>Obtaining Data</h2>
+<pre class="r"><code>library(caret)</code></pre>
+<pre><code>## Loading required package: lattice
+## Loading required package: ggplot2</code></pre>
 <pre class="r"><code>if(!file.exists(&quot;./data&quot;)){dir.create(&quot;./data&quot;)}
+if(!file.exists(&quot;./storage&quot;)){dir.create(&quot;./storage&quot;)}
 
 # training data
 trainingFileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;
@@ -86,21 +98,13 @@ trainingFileName &lt;- &quot;./data/pml-training.csv&quot;
 if(!file.exists(trainingFileName)){
     download.file(trainingFileUrl, trainingFileName)
 }
-trainingData &lt;- read.csv(trainingFileName)
-
-# testing data
-testingFileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;
-testingFileName &lt;- &quot;./data/pml-testing.csv&quot;
-if(!file.exists(testingFileName)){
-    download.file(testingFileUrl, testingFileName)
-}
-testingData &lt;- read.csv(testingFileName)</code></pre>
+trainingData &lt;- read.csv(trainingFileName)</code></pre>
 </div>
-<div id="analize-data" class="section level2">
-<h2>Analize data</h2>
+<div id="data-processing" class="section level2">
+<h2>Data processing</h2>
 <pre class="r"><code>dim(trainingData)</code></pre>
 <pre><code>## [1] 19622   160</code></pre>
-<p>We had <code>dim(trainingData)[1]</code> variables.</p>
+<p>We had 160 variables.</p>
 <pre class="r"><code>summary(trainingData)</code></pre>
 <p>The output is huge, but we can see that only part of variable contain full data and no NA, and these variables can be splitted in several groups.</p>
 <p>Lets make list with names of these variables.</p>
@@ -113,7 +117,8 @@ a &lt;- as.vector(outer(prefix1, type, paste, sep=&quot;_&quot;))
 cols2 &lt;- as.vector(outer(a, suffix, paste, sep=&quot;_&quot;))
 cols &lt;- c(&quot;classe&quot;, cols1,cols2)</code></pre>
 <p>Ok, these a list which we can use to get tidy data from our raw data.</p>
-<pre class="r"><code>cols</code></pre>
+<pre class="r"><code>trainDS &lt;- trainingData[,cols]
+cols</code></pre>
 <pre><code>##  [1] &quot;classe&quot;               &quot;roll_belt&quot;            &quot;pitch_belt&quot;          
 ##  [4] &quot;yaw_belt&quot;             &quot;total_accel_belt&quot;     &quot;roll_arm&quot;            
 ##  [7] &quot;pitch_arm&quot;            &quot;yaw_arm&quot;              &quot;total_accel_arm&quot;     
@@ -132,85 +137,151 @@ cols &lt;- c(&quot;classe&quot;, cols1,cols2)</code></pre>
 ## [46] &quot;accel_arm_z&quot;          &quot;magnet_arm_z&quot;         &quot;gyros_dumbbell_z&quot;    
 ## [49] &quot;accel_dumbbell_z&quot;     &quot;magnet_dumbbell_z&quot;    &quot;gyros_forearm_z&quot;     
 ## [52] &quot;accel_forearm_z&quot;      &quot;magnet_forearm_z&quot;</code></pre>
-<pre class="r"><code>training &lt;- trainingData[,cols]
-testing &lt;- testingData[,cols[-1]]</code></pre>
 </div>
-<div id="train-model" class="section level2">
-<h2>Train model</h2>
-<pre class="r"><code>library(caret)</code></pre>
-<pre><code>## Loading required package: lattice
-## Loading required package: ggplot2</code></pre>
-<pre class="r"><code>if(!file.exists(&quot;./storage&quot;)){dir.create(&quot;./storage&quot;)}
-modelFilename &lt;- &quot;./storage/modelRF.rda&quot;
-if(!file.exists(modelFilename)){
+<div id="cross-validation" class="section level2">
+<h2>Cross-validation</h2>
+<pre class="r"><code>##Create a random partitioning using the caret package
+inTrain = createDataPartition(trainDS$classe, p = 3/4)[[1]]
+## create a training dataset with 75% random data from the original dataset to build a suitable model
+training &lt;- trainDS[inTrain,]
+## Create a testing dataset with 25% random data from the original dataset to test the model
+testing &lt;- trainDS[-inTrain,]</code></pre>
+</div>
+<div id="model-building" class="section level2">
+<h2>Model Building</h2>
+<p>In this section a decision tree and random forest will be applied to the data.</p>
+<div id="decision-tree" class="section level3">
+<h3>Decision tree</h3>
+<pre class="r"><code>modelDTFilename &lt;- &quot;./storage/modelRpart.rda&quot;
+if(!file.exists(modelDTFilename)){
+    # Fit model
+    modelRpart &lt;- train(classe ~., method=&quot;rpart&quot;, data=training)
+} else {
+    load(file=modelDTFilename)
+}
+
+# Perform prediction
+predictDT &lt;- predict(modelRpart, testing)</code></pre>
+<pre><code>## Loading required package: rpart</code></pre>
+<pre class="r"><code># Following confusion matrix shows the errors of the prediction algorithm.
+confusionMatrix(predictDT, testing$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
+## 
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1270  388  396  353  121
+##          B   23  321   20  138  117
+##          C  100  240  439  313  246
+##          D    0    0    0    0    0
+##          E    2    0    0    0  417
+## 
+## Overall Statistics
+##                                           
+##                Accuracy : 0.499           
+##                  95% CI : (0.4849, 0.5131)
+##     No Information Rate : 0.2845          
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16       
+##                                           
+##                   Kappa : 0.3456          
+##  Mcnemar's Test P-Value : NA              
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            0.9104  0.33825  0.51345   0.0000  0.46282
+## Specificity            0.6415  0.92465  0.77797   1.0000  0.99950
+## Pos Pred Value         0.5024  0.51858  0.32810      NaN  0.99523
+## Neg Pred Value         0.9474  0.85344  0.88334   0.8361  0.89208
+## Prevalence             0.2845  0.19352  0.17435   0.1639  0.18373
+## Detection Rate         0.2590  0.06546  0.08952   0.0000  0.08503
+## Detection Prevalence   0.5155  0.12622  0.27284   0.0000  0.08544
+## Balanced Accuracy      0.7759  0.63145  0.64571   0.5000  0.73116</code></pre>
+</div>
+<div id="random-forest" class="section level3">
+<h3>Random Forest</h3>
+<pre class="r"><code>modelRFFilename &lt;- &quot;./storage/modelRF.rda&quot;
+if(!file.exists(modelRFFilename)){
+    # Fit model
     modelRF &lt;- train(classe ~., method=&quot;rf&quot;, data=training)
 } else {
-    load(file=modelFilename)
-}</code></pre>
-<p>Result model</p>
-<pre class="r"><code>modelRF</code></pre>
-<pre><code>## Random Forest 
-## 
-## 19622 samples
-##    52 predictor
-##     5 classes: 'A', 'B', 'C', 'D', 'E' 
-## 
-## No pre-processing
-## Resampling: Bootstrapped (25 reps) 
-## 
-## Summary of sample sizes: 19622, 19622, 19622, 19622, 19622, 19622, ... 
-## 
-## Resampling results across tuning parameters:
-## 
-##   mtry  Accuracy   Kappa      Accuracy SD  Kappa SD   
-##    2    0.9928244  0.9909217  0.001360437  0.001721197
-##   27    0.9922011  0.9901331  0.001249430  0.001580989
-##   52    0.9840655  0.9798383  0.003386867  0.004289967
-## 
-## Accuracy was used to select the optimal model using  the largest value.
-## The final value used for the model was mtry = 2.</code></pre>
-</div>
-<div id="interpretation" class="section level2">
-<h2>Interpretation</h2>
-<pre class="r"><code>varImp(modelRF)</code></pre>
+    load(file=modelRFFilename)
+}
+
+# Perform prediction
+predictRF &lt;- predict(modelRF, testing)</code></pre>
 <pre><code>## Loading required package: randomForest
 ## randomForest 4.6-10
 ## Type rfNews() to see new features/changes/bug fixes.</code></pre>
-<pre><code>## rf variable importance
+<pre class="r"><code># Following confusion matrix shows the errors of the prediction algorithm.
+confusionMatrix(predictRF, testing$classe)</code></pre>
+<pre><code>## Confusion Matrix and Statistics
 ## 
-##   only 20 most important variables shown (out of 52)
+##           Reference
+## Prediction    A    B    C    D    E
+##          A 1395    0    0    0    0
+##          B    0  949    0    0    0
+##          C    0    0  855    0    0
+##          D    0    0    0  804    0
+##          E    0    0    0    0  901
 ## 
-##                      Overall
-## roll_belt             100.00
-## yaw_belt               84.00
-## magnet_dumbbell_z      69.44
-## pitch_belt             62.51
-## pitch_forearm          62.43
-## magnet_dumbbell_y      60.07
-## roll_forearm           53.47
-## magnet_dumbbell_x      52.52
-## magnet_belt_z          42.99
-## roll_dumbbell          41.93
-## accel_belt_z           41.77
-## accel_dumbbell_y       40.97
-## magnet_belt_y          39.21
-## accel_dumbbell_z       39.15
-## roll_arm               33.42
-## accel_forearm_x        31.58
-## gyros_belt_z           29.62
-## yaw_dumbbell           28.37
-## magnet_arm_y           27.60
-## total_accel_dumbbell   27.21</code></pre>
+## Overall Statistics
+##                                      
+##                Accuracy : 1          
+##                  95% CI : (0.9992, 1)
+##     No Information Rate : 0.2845     
+##     P-Value [Acc &gt; NIR] : &lt; 2.2e-16  
+##                                      
+##                   Kappa : 1          
+##  Mcnemar's Test P-Value : NA         
+## 
+## Statistics by Class:
+## 
+##                      Class: A Class: B Class: C Class: D Class: E
+## Sensitivity            1.0000   1.0000   1.0000   1.0000   1.0000
+## Specificity            1.0000   1.0000   1.0000   1.0000   1.0000
+## Pos Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+## Neg Pred Value         1.0000   1.0000   1.0000   1.0000   1.0000
+## Prevalence             0.2845   0.1935   0.1743   0.1639   0.1837
+## Detection Rate         0.2845   0.1935   0.1743   0.1639   0.1837
+## Detection Prevalence   0.2845   0.1935   0.1743   0.1639   0.1837
+## Balanced Accuracy      1.0000   1.0000   1.0000   1.0000   1.0000</code></pre>
 </div>
-<div id="prediction" class="section level2">
-<h2>Prediction</h2>
-<pre class="r"><code>modelRFResult &lt;- predict(modelRF, newdata=testing)
-modelRFResult</code></pre>
-<pre><code>##  [1] B A B A A E D B A A B C B A E E A B B B
-## Levels: A B C D E</code></pre>
 </div>
-<div id="result" class="section level2">
-<h2>Result</h2>
+<div id="conclusion" class="section level2">
+<h2>Conclusion</h2>
+<div id="result" class="section level3">
+<h3>Result</h3>
+<p>The confusion matrices show, that the Random Forest algorithm performens better than decision trees. The accuracy for the Random Forest model was 1.0 (95% CI : (0.9992, 1)) compared to 0.5037 (95% CI : (0.4896, 0.5178)) for Decision Tree model. The random Forest model is choosen.</p>
+</div>
+<div id="expected-out-of-sample-error" class="section level3">
+<h3>Expected out-of-sample error</h3>
+<p>The expected out-of-sample error is estimated at 0.0. The expected out-of-sample error is calculated as 1 - accuracy for predictions made against the cross-validation set. With an accuracy about 100% on our cross-validation data, we can expect that very few, or none, of the test samples will be missclassified.</p>
+</div>
+</div>
+<div id="submission" class="section level2">
+<h2>Submission</h2>
+<p>In this section the files for the project submission are generated using the random forest algorithm on the testing data.</p>
+<pre class="r"><code># testing data
+testingFileUrl &lt;- &quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;
+testingFileName &lt;- &quot;./data/pml-testing.csv&quot;
+if(!file.exists(testingFileName)){
+    download.file(testingFileUrl, testingFileName)
+}
+testingData &lt;- read.csv(testingFileName)
+testingAssignment &lt;- testingData[,cols[-1]]
+
+modelRFResult &lt;- predict(modelRF, newdata=testingAssignment)
+
+pml_write_files = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0(&quot;assignment/problem_id_&quot;,i,&quot;.txt&quot;)
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+
+if(!file.exists(&quot;./assignment&quot;)){dir.create(&quot;./assignment&quot;)}
+pml_write_files(modelRFResult)</code></pre>
 <p>According to assignment page 20 of 20 values are predicted correctly.</p>
 </div>
 
